@@ -18,7 +18,7 @@ type Config struct {
 func Read() Config {
 	path, err := getFilePath(gatorconfigjson)
 	if err != nil {
-		fmt.Errorf("Error getting path")
+		fmt.Println("Error getting path")
 	}
 	// open the file into a stream for the decoder to use
 	file, err := os.Open(path)
@@ -39,18 +39,18 @@ func (c Config) SetUser(current_username string) error {
 	// get path
 	path, err := getFilePath(gatorconfigjson)
 	if err != nil {
-		fmt.Errorf("Error getting path")
+		return fmt.Errorf("Error getting path")
 	}
 	c.Currret_username = current_username
 	// create prettified marshaled data
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		fmt.Errorf("Error marshaling config data")
+		return fmt.Errorf("Error marshaling config data")
 	}
 	//write to file
 	err = os.WriteFile(path, data, 0644)
 	if err != nil {
-		fmt.Errorf("Error writing file")
+		return fmt.Errorf("Error writing file")
 	}
 	return nil
 }
