@@ -63,6 +63,7 @@ func main() {
 	//initialize command handlers
 	comms.register("login", handlerLogin)
 	comms.register("register", handlerRegister)
+	comms.register("users", handlerUsers)
 	err = comms.run(&ste, cmd)
 	if err != nil {
 		fmt.Printf("error:%v \n", err)
@@ -128,5 +129,23 @@ func handlerRegister(s *state, c command) error {
 	}
 
 	fmt.Printf("User '%s' registered successfully\n", c.arguments[0])
+	return nil
+}
+
+func handlerUsers(s *state, c command) error {
+	if len(c.arguments) > 1 {
+		return fmt.Errorf("this function does not require arguements")
+	}
+	users, err := s.db.GetAllUsersName(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldnt retrive usernames ")
+	}
+	for _, user := range users {
+		if user == s.configpointer.Currret_username {
+			fmt.Printf("* %s (current user)\n", user)
+		} else {
+			fmt.Printf("* %s\n", user)
+		}
+	}
 	return nil
 }
