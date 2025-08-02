@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/xml"
 	"fmt"
+	"html"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -28,6 +32,22 @@ type commands struct {
 	command_map map[string]func(*state, command) error
 }
 
+type RSSFeed struct {
+	Channel struct {
+		Title       string    `xml:"title"`
+		Link        string    `xml:"link"`
+		Description string    `xml:"description"`
+		Items       []RSSItem `xml:"item"`
+	} `xml:"channel"`
+}
+
+type RSSItem struct {
+	Title       string `xml:"title"`
+	Link        string `xml:"link"`
+	Description string `xml:"description"`
+	PubDate     string `xml:"pubDate"`
+}
+
 // declare config variables
 var ste state
 var cfg config.Config
@@ -44,7 +64,7 @@ func main() {
 
 	cfg = config.Read()
 
-	ste := state{
+	ste = state{
 		db:            dbQueries,
 		configpointer: &cfg,
 	}
@@ -64,6 +84,8 @@ func main() {
 	comms.register("login", handlerLogin)
 	comms.register("register", handlerRegister)
 	comms.register("users", handlerUsers)
+	comms.register("agg", handlerAgg)
+
 	err = comms.run(&ste, cmd)
 	if err != nil {
 		fmt.Printf("error:%v \n", err)
@@ -138,7 +160,7 @@ func handlerUsers(s *state, c command) error {
 	}
 	users, err := s.db.GetAllUsersName(context.Background())
 	if err != nil {
-		return fmt.Errorf("couldnt retrive usernames ")
+		return fmt.Errorf("couldnt retrive usernames \n")
 	}
 	for _, user := range users {
 		if user == s.configpointer.Currret_username {
@@ -147,5 +169,50 @@ func handlerUsers(s *state, c command) error {
 			fmt.Printf("* %s\n", user)
 		}
 	}
+	return nil
+}
+
+func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
+	// create the request
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldnt form request\n")
+	}
+	req.Header.Set("User-Agent", "gator")
+	// use client to make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error recieving response\n")
+	}
+	defer resp.Body.Close()
+	// obtain and convert xml into a struct
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading body\n")
+	}
+	var RSSresp RSSFeed
+
+	err = xml.Unmarshal(body, &RSSresp)
+	if err != nil {
+		return nil, fmt.Errorf("couldnt convert xml into go struct\n")
+	}
+	//clean up the struct feilds
+	RSSresp.Channel.Title = html.UnescapeString(RSSresp.Channel.Title)
+	RSSresp.Channel.Description = html.UnescapeString(RSSresp.Channel.Description)
+	for i := range RSSresp.Channel.Items {
+		RSSresp.Channel.Items[i].Title = html.UnescapeString(RSSresp.Channel.Items[i].Title)
+		RSSresp.Channel.Items[i].Description = html.UnescapeString(RSSresp.Channel.Items[i].Description)
+	}
+
+	return &RSSresp, nil
+}
+
+func handlerAgg(s *state, c command) error {
+	rss, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return fmt.Errorf("error reading go struct\n")
+	}
+	fmt.Println(rss)
 	return nil
 }
