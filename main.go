@@ -85,6 +85,8 @@ func main() {
 	comms.register("register", handlerRegister)
 	comms.register("users", handlerUsers)
 	comms.register("agg", handlerAgg)
+	comms.register("addfeed", handlerAddFeed)
+	comms.register("feeds", handlerFeeds)
 
 	err = comms.run(&ste, cmd)
 	if err != nil {
@@ -163,7 +165,7 @@ func handlerUsers(s *state, c command) error {
 		return fmt.Errorf("couldnt retrive usernames \n")
 	}
 	for _, user := range users {
-		if user == s.configpointer.Currret_username {
+		if user == s.configpointer.Current_username {
 			fmt.Printf("* %s (current user)\n", user)
 		} else {
 			fmt.Printf("* %s\n", user)
@@ -214,5 +216,50 @@ func handlerAgg(s *state, c command) error {
 		return fmt.Errorf("error reading go struct\n")
 	}
 	fmt.Println(rss)
+	return nil
+}
+func handlerAddFeed(s *state, c command) error {
+	if len(c.arguments) < 2 {
+		return fmt.Errorf("this function requires url and name")
+	}
+	// create feed struct and get userID being tied to feed
+	userid, err := s.db.GetUserIdByName(context.Background(), s.configpointer.Current_username)
+	if err != nil {
+		return fmt.Errorf("error obtaining user id\n")
+	}
+	feedinfo := database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      c.arguments[0],
+		Url:       c.arguments[1],
+		UserID:    userid,
+	}
+
+	feed, err := s.db.CreateFeed(context.Background(), feedinfo)
+	if err != nil {
+		return fmt.Errorf("error adding feed\n")
+	}
+	fmt.Println("New feed added:")
+	fmt.Printf("  ID        : %s\n", feed.ID)
+	fmt.Printf("  Name      : %s\n", feed.Name)
+	fmt.Printf("  URL       : %s\n", feed.Url)
+	fmt.Printf("  User ID   : %s\n", feed.UserID)
+	fmt.Printf("  Created At: %s\n", feed.CreatedAt.Format(time.RFC3339))
+	fmt.Printf("  Updated At: %s\n", feed.UpdatedAt.Format(time.RFC3339))
+	return nil
+}
+
+func handlerFeeds(s *state, c command) error {
+	feeds, err := s.db.ReturnAllFeedsWithUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldnt retrieve feed data from database\n")
+	}
+	for _, feed := range feeds {
+		fmt.Println("----------")
+		fmt.Printf("Feed Name : %s\n", feed.Name)
+		fmt.Printf("Feed URL  : %s\n", feed.Url)
+		fmt.Printf("Created By: %s\n", feed.Username)
+	}
 	return nil
 }

@@ -12,7 +12,7 @@ const gatorconfigjson string = ".gatorconfig.json"
 
 type Config struct {
 	Db_url           string `json:"db_url"`
-	Currret_username string `json:"current_username"`
+	Current_username string `json:"current_username"`
 }
 
 func Read() Config {
@@ -41,7 +41,7 @@ func (c Config) SetUser(current_username string) error {
 	if err != nil {
 		return fmt.Errorf("Error getting path")
 	}
-	c.Currret_username = current_username
+	c.Current_username = current_username
 	// create prettified marshaled data
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {

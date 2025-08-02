@@ -30,7 +30,7 @@ type CreateFeedParams struct {
 	UpdatedAt time.Time
 	Name      string
 	Url       string
-	UserID    uuid.NullUUID
+	UserID    uuid.UUID
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, error) {
@@ -52,4 +52,54 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.UserID,
 	)
 	return i, err
+}
+
+const returnAllFeedsWithUsers = `-- name: ReturnAllFeedsWithUsers :many
+SELECT 
+    f.id, f.created_at, f.updated_at, f.name, f.url, f.user_id, u.name AS username
+FROM 
+    feed f
+JOIN 
+    users u ON f.user_id = u.id
+`
+
+type ReturnAllFeedsWithUsersRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Name      string
+	Url       string
+	UserID    uuid.UUID
+	Username  string
+}
+
+func (q *Queries) ReturnAllFeedsWithUsers(ctx context.Context) ([]ReturnAllFeedsWithUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, returnAllFeedsWithUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReturnAllFeedsWithUsersRow
+	for rows.Next() {
+		var i ReturnAllFeedsWithUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Url,
+			&i.UserID,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
