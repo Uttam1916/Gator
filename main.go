@@ -87,6 +87,8 @@ func main() {
 	comms.register("agg", handlerAgg)
 	comms.register("addfeed", handlerAddFeed)
 	comms.register("feeds", handlerFeeds)
+	comms.register("follow", handlerFollow)
+	comms.register("following", handlerFollowing)
 
 	err = comms.run(&ste, cmd)
 	if err != nil {
@@ -247,6 +249,22 @@ func handlerAddFeed(s *state, c command) error {
 	fmt.Printf("  User ID   : %s\n", feed.UserID)
 	fmt.Printf("  Created At: %s\n", feed.CreatedAt.Format(time.RFC3339))
 	fmt.Printf("  Updated At: %s\n", feed.UpdatedAt.Format(time.RFC3339))
+	// ---- Automatically follow the feed ----
+	feedfollowparams := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    userid,
+		FeedID:    feed.ID,
+	}
+
+	feedfollow, err := s.db.CreateFeedFollow(context.Background(), feedfollowparams)
+	if err != nil {
+		return fmt.Errorf("feed created but follow failed: %v", err)
+	}
+
+	fmt.Printf("User '%s' is now following feed '%s'\n", feedfollow.UserName, feedfollow.FeedName)
+
 	return nil
 }
 
@@ -260,6 +278,46 @@ func handlerFeeds(s *state, c command) error {
 		fmt.Printf("Feed Name : %s\n", feed.Name)
 		fmt.Printf("Feed URL  : %s\n", feed.Url)
 		fmt.Printf("Created By: %s\n", feed.Username)
+	}
+	return nil
+}
+
+func handlerFollow(s *state, c command) error {
+	userid, err := s.db.GetUserIdByName(context.Background(), s.configpointer.Current_username)
+	if err != nil {
+		return fmt.Errorf("error obtaining user id\n")
+	}
+	feedid, err := s.db.GetFeedIdFromUrl(context.Background(), c.arguments[0])
+	if err != nil {
+		return fmt.Errorf("error obtaining feed id\n")
+	}
+	feedfollowparams := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    userid,
+		FeedID:    feedid,
+	}
+	feedfollow, err := s.db.CreateFeedFollow(context.Background(), feedfollowparams)
+	if err != nil {
+		return fmt.Errorf("error obtaining feed follow details\n")
+	}
+	fmt.Printf("Feed Name : %v\n", feedfollow.FeedName)
+	fmt.Printf("User Name : %v\n", feedfollow.UserName)
+	return nil
+}
+
+func handlerFollowing(s *state, c command) error {
+	userid, err := s.db.GetUserIdByName(context.Background(), s.configpointer.Current_username)
+	if err != nil {
+		return fmt.Errorf("error obtaining user id\n")
+	}
+	feedfollows, err := s.db.GetFeedFollowsForUser(context.Background(), userid)
+	fmt.Println("Feed follows for current user:")
+	for i, feedfollow := range feedfollows {
+		fmt.Printf(" %v.\n", 1+i)
+		fmt.Printf("Feed Name : %v\n", feedfollow.FeedName)
+		fmt.Printf("User Name : %v\n", feedfollow.UserName)
 	}
 	return nil
 }
