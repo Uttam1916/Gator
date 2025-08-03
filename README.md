@@ -11,6 +11,10 @@ To run Gator locally, you must have:
 
 Make sure PostgreSQL is running with the following connection (or modify it in `main.go`):
 
+```bash
+postgres://postgres:postgres@localhost:5432/gator?sslmode=disable
+```
+
 ## Installation
 
 To install the Gator CLI:
