@@ -21,7 +21,7 @@ INSERT INTO feed (id,created_at,updated_at,name,url,user_id) VALUES(
     $5,
     $6
 ) 
-RETURNING id, created_at, updated_at, name, url, user_id
+RETURNING id, created_at, updated_at, name, url, user_id, lastfetched_at
 `
 
 type CreateFeedParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.Name,
 		&i.Url,
 		&i.UserID,
+		&i.LastfetchedAt,
 	)
 	return i, err
 }
@@ -112,6 +113,26 @@ func (q *Queries) CreateFeedFollow(ctx context.Context, arg CreateFeedFollowPara
 		&i.FeedName,
 	)
 	return i, err
+}
+
+const deleteFeedFollowByUserAndURL = `-- name: DeleteFeedFollowByUserAndURL :exec
+
+DELETE FROM feedfollows
+USING users, feed
+WHERE feedfollows.user_id = users.id
+  AND feedfollows.feed_id = feed.id
+  AND users.name = $1
+  AND feed.url = $2
+`
+
+type DeleteFeedFollowByUserAndURLParams struct {
+	Name string
+	Url  string
+}
+
+func (q *Queries) DeleteFeedFollowByUserAndURL(ctx context.Context, arg DeleteFeedFollowByUserAndURLParams) error {
+	_, err := q.db.ExecContext(ctx, deleteFeedFollowByUserAndURL, arg.Name, arg.Url)
+	return err
 }
 
 const getFeedFollowsForUser = `-- name: GetFeedFollowsForUser :many
@@ -179,6 +200,35 @@ func (q *Queries) GetFeedIdFromUrl(ctx context.Context, url string) (uuid.UUID, 
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getNextFeed = `-- name: GetNextFeed :one
+SELECT id, created_at, updated_at, name, url, user_id, lastfetched_at FROM feed ORDER BY lastfetched_at NULLS FIRST LIMIT 1
+`
+
+func (q *Queries) GetNextFeed(ctx context.Context) (Feed, error) {
+	row := q.db.QueryRowContext(ctx, getNextFeed)
+	var i Feed
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Url,
+		&i.UserID,
+		&i.LastfetchedAt,
+	)
+	return i, err
+}
+
+const markFetchedFeed = `-- name: MarkFetchedFeed :exec
+
+UPDATE feed SET lastfetched_at=now(), updated_at=now() WHERE id=$1
+`
+
+func (q *Queries) MarkFetchedFeed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, markFetchedFeed, id)
+	return err
 }
 
 const returnAllFeedsWithUsers = `-- name: ReturnAllFeedsWithUsers :many

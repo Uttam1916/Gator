@@ -85,10 +85,11 @@ func main() {
 	comms.register("register", handlerRegister)
 	comms.register("users", handlerUsers)
 	comms.register("agg", handlerAgg)
-	comms.register("addfeed", handlerAddFeed)
+	comms.register("addfeed", middlewareLogin(handlerAddFeed))
 	comms.register("feeds", handlerFeeds)
-	comms.register("follow", handlerFollow)
-	comms.register("following", handlerFollowing)
+	comms.register("follow", middlewareLogin(handlerFollow))
+	comms.register("following", middlewareLogin(handlerFollowing))
+	comms.register("unfollow", middlewareLogin(handlerUnfollow))
 
 	err = comms.run(&ste, cmd)
 	if err != nil {
@@ -147,11 +148,11 @@ func handlerRegister(s *state, c command) error {
 	}
 	_, err = s.db.CreateUser(context.Background(), usertobecreated)
 	if err != nil {
-		return fmt.Errorf("couldnt create new user: ", err)
+		return fmt.Errorf("couldnt create new user\n")
 	}
 	err = s.configpointer.SetUser(c.arguments[0])
 	if err != nil {
-		return fmt.Errorf("couldnt set new user: ", err)
+		return fmt.Errorf("couldnt set new user\n")
 	}
 
 	fmt.Printf("User '%s' registered successfully\n", c.arguments[0])
@@ -220,7 +221,22 @@ func handlerAgg(s *state, c command) error {
 	fmt.Println(rss)
 	return nil
 }
-func handlerAddFeed(s *state, c command) error {
+
+// middleware higher order function to check login
+func middlewareLogin(handler func(s *state, c command, user database.User) error) func(*state, command) error {
+	return func(s *state, c command) error {
+		if s.configpointer.Current_username == "" {
+			return fmt.Errorf("No user logged in\n")
+		}
+		user, err := s.db.GetUserByName(context.Background(), s.configpointer.Current_username)
+		if err != nil {
+			return fmt.Errorf("error obtaining user info\n")
+		}
+		return handler(s, c, user)
+	}
+}
+
+func handlerAddFeed(s *state, c command, user database.User) error {
 	if len(c.arguments) < 2 {
 		return fmt.Errorf("this function requires url and name")
 	}
@@ -282,7 +298,7 @@ func handlerFeeds(s *state, c command) error {
 	return nil
 }
 
-func handlerFollow(s *state, c command) error {
+func handlerFollow(s *state, c command, user database.User) error {
 	userid, err := s.db.GetUserIdByName(context.Background(), s.configpointer.Current_username)
 	if err != nil {
 		return fmt.Errorf("error obtaining user id\n")
@@ -307,7 +323,7 @@ func handlerFollow(s *state, c command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, c command) error {
+func handlerFollowing(s *state, c command, user database.User) error {
 	userid, err := s.db.GetUserIdByName(context.Background(), s.configpointer.Current_username)
 	if err != nil {
 		return fmt.Errorf("error obtaining user id\n")
@@ -320,4 +336,54 @@ func handlerFollowing(s *state, c command) error {
 		fmt.Printf("User Name : %v\n", feedfollow.UserName)
 	}
 	return nil
+}
+
+func handlerUnfollow(s *state, c command, user database.User) error {
+	if len(c.arguments) < 1 {
+		return fmt.Errorf("this function requires url\n")
+	}
+	params := database.DeleteFeedFollowByUserAndURLParams{
+		Name: s.configpointer.Current_username,
+		Url:  c.arguments[0],
+	}
+	err := s.db.DeleteFeedFollowByUserAndURL(context.Background(), params)
+	if err != nil {
+		return fmt.Errorf("error unfollowing feed\n")
+	}
+	return nil
+}
+
+func scrapeFeeds(s *state) error {
+	nextfeed, err := s.db.GetNextFeed(context.Background())
+	if err != nil {
+		return fmt.Errorf("error getting next feed\n")
+	}
+	err = s.db.MarkFetchedFeed(context.Background(), nextfeed.ID)
+	if err != nil {
+		return fmt.Errorf("error marking fetched feed\n")
+	}
+	feed, err := fetchFeed(context.Background(), nextfeed.Url)
+	if err != nil {
+		return fmt.Errorf("error getting feed from database\n")
+	}
+	printRSSFeed(feed)
+	return nil
+}
+
+func printRSSFeed(feed *RSSFeed) {
+	fmt.Println("📡 Feed Info")
+	fmt.Println("┌──────────────────────────────────────────────")
+	fmt.Printf("│ Title       : %s\n", feed.Channel.Title)
+	fmt.Printf("│ Link        : %s\n", feed.Channel.Link)
+	fmt.Printf("│ Description : %s\n", feed.Channel.Description)
+	fmt.Println("└──────────────────────────────────────────────")
+
+	fmt.Printf("\n📰 %d Posts:\n", len(feed.Channel.Items))
+	for i, item := range feed.Channel.Items {
+		fmt.Printf("  ── [%d] ────────────────────────────────────────\n", i+1)
+		fmt.Printf("  📌 Title      : %s\n", item.Title)
+		fmt.Printf("  🔗 Link       : %s\n", item.Link)
+		fmt.Printf("  📝 Summary    : %s\n", item.Description)
+		fmt.Printf("  📅 Published  : %s\n", item.PubDate)
+	}
 }
