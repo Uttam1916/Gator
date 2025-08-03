@@ -70,6 +70,3 @@ UPDATE feed SET lastfetched_at=now(), updated_at=now() WHERE id=$1;
 -- name: GetNextFeed :one
 SELECT * FROM feed ORDER BY lastfetched_at NULLS FIRST LIMIT 1;
 
--- name: GetFeedFromUrl :one
-
-SELECT * FROM feed WHERE url=$1;
