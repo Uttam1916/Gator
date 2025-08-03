@@ -35,26 +35,8 @@ Gator is used via commands. Each command may require arguments. You can run the 
 gator <command> [arguments...]
 ```
 
-### Available Commands
+run the following for help
 
-register <username>: Register a new user.
-
-login <username>: Log in as an existing user.
-
-users: List all registered users.
-
-addfeed <name> <url>: Add a new RSS feed (and follow it).
-
-feeds: List all available feeds.
-
-follow <url>: Follow an existing feed by its URL.
-
-following: List feeds you're following.
-
-unfollow <url>: Unfollow a feed by its URL.
-
-agg <duration>: Continuously scrape feeds every <duration>, e.g., 30s, 2m.
-
-browse [limit]: View your latest followed posts (default limit is 2).
-
-help: Show documentation for all available commands.
+```bash
+gator help
+```
