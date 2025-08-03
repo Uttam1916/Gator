@@ -93,6 +93,7 @@ func main() {
 	comms.register("following", middlewareLogin(handlerFollowing))
 	comms.register("unfollow", middlewareLogin(handlerUnfollow))
 	comms.register("browse", middlewareLogin(handlerBrowse))
+	comms.register("help", handlerHelp)
 
 	err = comms.run(&ste, cmd)
 	if err != nil {
@@ -470,4 +471,23 @@ func parsePubDate(raw string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("unknown date format: %s", raw)
+}
+
+func handlerHelp(s *state, c command) error {
+	fmt.Println("Gator CLI Help")
+	fmt.Println()
+	fmt.Println("Available commands:")
+	fmt.Println("  register <username>         - Register a new user")
+	fmt.Println("  login <username>            - Log in as a specific user")
+	fmt.Println("  users                       - List all registered users")
+	fmt.Println("  feeds                       - Show all feeds and their owners")
+	fmt.Println("  addfeed <name> <url>        - Add a new RSS feed and follow it")
+	fmt.Println("  follow <feed-url>           - Follow an existing feed by URL")
+	fmt.Println("  following                   - List feeds the current user is following")
+	fmt.Println("  unfollow <feed-url>         - Unfollow a feed by URL")
+	fmt.Println("  browse [limit]              - Show recent posts from followed feeds (default: 2)")
+	fmt.Println("  agg <duration>              - Continuously scrape feeds (e.g., '30s', '1m')")
+	fmt.Println("  help                        - Show this help message")
+	fmt.Println("Note: Make sure you're logged in for commands that require a user session.")
+	return nil
 }
